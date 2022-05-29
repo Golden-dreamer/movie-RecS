@@ -11,9 +11,9 @@ import numpy as np
 import Recommender
 
 
-PATH_MOVIES = "../data/ml-latest-small/movies.csv"
-PATH_TAGS = "../data/ml-latest-small/tags.csv"
-PATH_RATINGS = "../data/ml-latest-small/ratings.csv"
+PATH_MOVIES = "../data/ml-latest/movies.csv"
+PATH_TAGS = "../data/ml-latest/tags.csv"
+PATH_RATINGS = "../data/ml-latest/ratings.csv"
 PATH_ME = '../data/my_ratings.csv'
 
 
@@ -68,57 +68,20 @@ def dataframeWithTermFreq(dataframe):
     return pivot
 
 
+def reduceUsers(DF, userThreshold=20):  # 20
+    df = DF.copy()
+    df = df.groupby('userId').count()
+    users = df.loc[df.rating > userThreshold].index
+    return DF.loc[DF.userId.isin(users)]
+
+
 items, tags, ratings = getData()
 me = getMe()  # also gives userId to me DataFrame
-ratingsFull = addMeToRating(me, ratings)
+ratingsFull = reduceUsers(addMeToRating(me, ratings))
+#ratingsFull = addMeToRating(me, ratings)
 
 MY_USER_ID = me.userId.max()  # можно оптимизировать наносекунду(нет)
-
 tags.tag = tags.tag.str.lower()
 
-recs = Recommender.Recommender(ratingsFull, items, tags)
-recommends = recs.predict(MY_USER_ID)
-
-# df = tags.tag.value_counts()  # document frequency
-# # Could be 1 / df
-# # idf = 1/df
-# totalNumberOfItemsWithTag = tags.movieId.nunique()
-# idf = np.log(totalNumberOfItemsWithTag / df)
-
-
-# # tf[tf.index.get_level_values('tag') == 'funny']
-# tf = dataframeWithTermFreq(tags)
-# #tf = tf.join(items.set_index('movieId'), how='outer').drop(
-# #                                               columns=['genres', 'title'])
-# tf = tf.fillna(0)
-# tf = getNormDf(tf)
-# # can add genres as tag in future
-# tf = tf.join(items.set_index('itemId'), how='outer').drop(
-#                                               columns=['genres', 'title'])
-# tf = tf.fillna(0)
-# tf = tf.sort_index()
-
-
-# userRatings = ratingsFull[ratingsFull.userId == MY_USER_ID]
-# userRatings = userRatings.merge(items.movieId, how='outer')
-# userRatings = userRatings.set_index('itemId').drop(columns='userId').rating
-# userRatings = userRatings.fillna(0)
-# userRatings = userRatings.sort_index()
-
-# userProfile = getUserProfile(userRatings, tf)
-
-
-# def getRecs(tf, idf, userProfile, userRatings, itens, dropWatched=True):
-#     watched = userRatings[userRatings != 0].index
-#     recs = (idf * tf * userProfile).sum(axis=1)
-#     recs = recs.sort_values(ascending=False)
-#     recs.name = 'predScore'
-#     fullInfoRecs = items.set_index('itemId').join(recs)
-#     if dropWatched:
-#         fullInfoRecs = fullInfoRecs.drop(index=watched)
-#     fullInfoRecs = fullInfoRecs[fullInfoRecs.predScore != 0]
-#     fullInfoRecs = fullInfoRecs.sort_values('predScore', ascending=False)
-#     return fullInfoRecs
-
-
-# recs = getRecs(tf, idf, userProfile, userRatings, items)
+recs = Recommender.Recommender(ratingsFull, items, tags, freqThreshold=20)
+recommends = recs.predict(MY_USER_ID, dropWatched=True)
